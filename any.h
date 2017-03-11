@@ -201,7 +201,7 @@ struct any {
     template<typename ValueType>
     struct is_small {
         const static bool value =
-                (std::is_nothrow_constructible<ValueType>::value) && (sizeof(ValueType) <= SMALL_SIZE);
+                (std::is_nothrow_copy_constructible<ValueType>::value) && (sizeof(ValueType) <= SMALL_SIZE);
     };
 
     template<typename ValueType>
