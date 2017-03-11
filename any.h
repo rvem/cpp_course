@@ -53,13 +53,16 @@ struct any {
         if (state != other.state) {
             any tmp(std::move(other));
             other.storage_wrapper = storage_wrapper;
+            other.state = state;
             if (state != EMPTY) {
                 storage_wrapper->move(storage, other.storage);
             }
             storage_wrapper = tmp.storage_wrapper;
+            state = tmp.state;
             if (tmp.storage_wrapper != nullptr) {
                 tmp.storage_wrapper->move(tmp.storage, storage);
                 tmp.storage_wrapper = nullptr;
+                tmp.state = EMPTY;
             }
         } else {
             if (state != EMPTY) {
@@ -240,7 +243,6 @@ T *any_cast(any *operand) {
     else
         return operand->cast<T>();
 }
-
 
 
 #endif
