@@ -50,7 +50,7 @@ struct any {
     }
 
     void swap(any &other) {
-        if (state != other.state) {
+        if (storage_wrapper != other.storage_wrapper) {
             any tmp(std::move(other));
             other.storage_wrapper = storage_wrapper;
             other.state = state;
@@ -120,38 +120,9 @@ struct any {
         }
     }
 
-    template<typename ValueType>
-    void construct(ValueType &&value) {
-        using T = typename std::decay<ValueType>::type;
-
-        if (sizeof(ValueType) > SMALL_SIZE) {
-            static storage_t wrapper = {
-                    dynamic_storage<T>::type,
-                    dynamic_storage<T>::destroy,
-                    dynamic_storage<T>::copy,
-                    dynamic_storage<T>::move,
-                    dynamic_storage<T>::swap
-            };
-            storage_wrapper = &wrapper;
-            state = BIG;
-            storage.dynamic = new typename std::decay<ValueType>::type(std::forward<ValueType>(value));
-        } else {
-            static storage_t wrapper = {
-                    static_storage<T>::type,
-                    static_storage<T>::destroy,
-                    static_storage<T>::copy,
-                    static_storage<T>::move,
-                    static_storage<T>::swap
-            };
-            storage_wrapper = &wrapper;
-            state = SMALL;
-            new(&storage.stack) typename std::decay<ValueType>::type(std::forward<ValueType>(value));
-        }
-    }
-
     storage_state state;
 
-    static constexpr size_t SMALL_SIZE = 16;
+    static const size_t SMALL_SIZE = 16;
 
     union storage_union {
         void *dynamic;
@@ -226,6 +197,42 @@ struct any {
             std::swap(reinterpret_cast<T &>(lhs.stack), reinterpret_cast<T &>(rhs.stack));
         }
     };
+
+    template<typename ValueType>
+    struct is_small {
+        const static bool value =
+                (std::is_nothrow_constructible<ValueType>::value) && (sizeof(ValueType) <= SMALL_SIZE);
+    };
+
+    template<typename ValueType>
+    typename std::enable_if<!is_small<ValueType>::value>::type construct(ValueType &&value) {
+        using T = typename std::decay<ValueType>::type;
+        static storage_t wrapper = {
+                dynamic_storage<T>::type,
+                dynamic_storage<T>::destroy,
+                dynamic_storage<T>::copy,
+                dynamic_storage<T>::move,
+                dynamic_storage<T>::swap
+        };
+        storage_wrapper = &wrapper;
+        storage.dynamic = new T(std::forward<ValueType>(value));
+        state = BIG;
+    }
+
+    template<typename ValueType>
+    typename std::enable_if<is_small<ValueType>::value>::type construct(ValueType &&value) {
+        using T = typename std::decay<ValueType>::type;
+        static storage_t wrapper = {
+                static_storage<T>::type,
+                static_storage<T>::destroy,
+                static_storage<T>::copy,
+                static_storage<T>::move,
+                static_storage<T>::swap
+        };
+        storage_wrapper = &wrapper;
+        new(&storage.dynamic) T(std::forward<ValueType>(value));
+        state = SMALL;
+    }
 };
 
 template<typename T>
